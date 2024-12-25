@@ -22,12 +22,30 @@ interface SigninProps {
   password: string;
 }
 
-interface CreateContentProps extends AuthReqProps  {
-  title: string;
-  link: string;
-  contentType: string
-
+interface TagProps {
+  name: string;
 }
+interface CreateContentProps extends AuthReqProps  {
+  title?: string;
+  link?: string;
+  type?: ContentType
+  tags?: TagProps[]
+}
+enum ContentType {
+  TEXT = "text",
+  IMAGE = "image",
+  VIDEO = "video",
+  AUDIO = "audio",
+  LINK = "link"
+}
+
+interface DeleteProps extends AuthReqProps {
+  body: {
+    id: number;
+  }
+}
+
+
 
 router.post("/signup", async (req: Request<{}, {}, SignupProps>, res: Response): Promise<void> => {
   const { email, username, password } = req.body;
@@ -95,8 +113,98 @@ router.post("/signin", async (req: Request<{}, {}, SigninProps>, res: Response):
 
 router.post("/create-content", authMiddleware, async (req: CreateContentProps, res: Response): Promise<void> => {
   const userId = req.userId;
+
+  try {
+    if(!userId) {
+      res.status(401).json({ message: "Unauthorized! Cannot create content!" });
+      return;
+    }
+    const { title, link, type, tags } = req.body;
+
+    if(!title || !link || !type) {
+      res.status(400).json({ message: "Missing required fields" });
+      return;
+    }
+    const response = await client.content.create({
+      data: {
+        title,
+      link,
+      type,
+      tags: {
+        create: tags.map((tag: string) => ({name: tag}))
+      },
+      user: {
+        connect: { id: userId },
+      },
+      
+      }
+    })
+
+    res.status(201).json({
+      message: "Content created successfully",
+      response: response,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Internal Server Error");
+  }
 })
 
+router.get("/get-contents", authMiddleware, async (req: AuthReqProps, res): Promise<void> => {
+  const userId = req.userId;
+  try {
+    if(!userId){
+      res.status(401).json({ message: "Unauthorized! Cannot get content!" });
+      return;
+    }
 
+    const response = await client.content.findMany({
+      where: {
+        userId: userId,
+      }
+    })
+
+    res.status(200).json({
+      message: "Content retrieved successfully",
+      response: response,
+    });
+    
+  } catch(error) {
+    console.error(error);
+    res.status(500).send("Internal Server Error");
+  }
+
+})
+
+router.delete("/delete-content", authMiddleware, async (req: DeleteProps, res: Response): Promise<void> => {
+  const userId = req.userId;
+  try {
+    if(!userId) {
+      res.status(401).json({ message: "Unauthorized! Cannot delete content!" });
+      return;
+    }
+    const id = req.body.id;
+    await client.tag.deleteMany({
+      where: {
+        contentId: id,
+      }
+    })
+    const response = await client.content.delete({
+      where: {
+        id: id,
+        userId: userId,
+      }
+    })
+
+    res.status(200).json({
+      message: "Content deleted successfully",
+      response: response,
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Internal Server Error");
+  }
+})
 
 export const userRouter = router;

@@ -14,23 +14,26 @@ datasource db {
 }
 
 model User {
-  id       Int    @id @default(autoincrement())
-  email    String @unique
-  username String @unique
+  id       Int       @id @default(autoincrement())
+  email    String    @unique
+  username String    @unique
   password String
+  Content  Content[]
 }
 
 model Content {
-  id    Int         @id @default(autoincrement())
-  title String
-  type  ContentType
-  link  String
-  tags  Tag[]
+  id     Int         @id @default(autoincrement())
+  title  String
+  type   ContentType
+  link   String
+  tags   Tag[]
+  userId Int
+  user   User        @relation(fields: [userId], references: [id])
 }
 
 model Tag {
   id        Int     @id @default(autoincrement())
-  name      String  @unique
+  name      String
   content   Content @relation(fields: [contentId], references: [id])
   contentId Int
 }
