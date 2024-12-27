@@ -58,6 +58,13 @@ interface GetBrainProps extends Request {
   }
 }
 
+interface UpdateContentStatusProps extends AuthReqProps {
+  body: {
+    id:number,
+    isPublic: boolean
+  }
+}
+
 
 
 router.post("/signup", async (req: Request<{}, {}, SignupProps>, res: Response): Promise<void> => {
@@ -230,6 +237,34 @@ router.delete("/delete-content", authMiddleware, async (req: DeleteProps, res: R
   }
 })
 
+router.post("/update-content-status", authMiddleware, async (req: UpdateContentStatusProps, res: Response) => {
+  const userId = req.userId;
+  try {
+    if(!userId){
+      res.status(401).json({ message: "Unauthorized! Cannot update content status!" });
+      return;
+    }
+
+    const {id, isPublic} = req.body;
+    const rresponse = await client.content.update({
+      where: {
+        id: id,
+      }, 
+      data: {
+        isPublic: isPublic
+      }
+    })
+
+    res.status(200).json({
+      message: "Content status updated successfully",
+      response: rresponse,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Internal Server Error");
+  }
+})
+
 router.post("/share-brain", authMiddleware, async (req: ShareBrainProps, res: Response) => {
   const userId = req.userId;
   try {
@@ -316,6 +351,7 @@ router.get("/brain/:shareLink", async (req: GetBrainProps, res: Response) => {
     const response = await client.content.findMany({
       where: {
         userId: link.userId,
+        isPublic: true
       }
     })
 
