@@ -3,6 +3,7 @@ import bcrypt from "bcrypt";
 import express, { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import authMiddleware, { AuthReqProps } from "../middleware";
+import generateShareableLink from "../utils/generateShareableLink";
 
 const JWT_SECRET: string = process.env.JWT_SECRET || "";
 
@@ -45,11 +46,33 @@ interface DeleteProps extends AuthReqProps {
   }
 }
 
+interface ShareBrainProps extends AuthReqProps {
+  body: {
+    share: boolean;
+  }
+}
+
+interface GetBrainProps extends Request {
+  params: {
+    shareLink: string;
+  }
+}
+
 
 
 router.post("/signup", async (req: Request<{}, {}, SignupProps>, res: Response): Promise<void> => {
   const { email, username, password } = req.body;
   try {
+    const existUser = await client.user.findUnique({
+      where: {
+        email,
+        username,
+      },
+    });
+    if (existUser) {
+      res.status(400).json({ message: "User already exists" });
+      return;
+    }
     const hashPassword = await bcrypt.hash(password, 10);
 
     const response = await client.user.create({
@@ -201,6 +224,108 @@ router.delete("/delete-content", authMiddleware, async (req: DeleteProps, res: R
       response: response,
     });
 
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Internal Server Error");
+  }
+})
+
+router.post("/share-brain", authMiddleware, async (req: ShareBrainProps, res: Response) => {
+  const userId = req.userId;
+  try {
+    if(!userId) {
+      res.status(401).json({ message: "Unauthorized! Cannot share brain!" });
+      return;
+    }
+
+    const {share} = req.body;
+    if(share) {
+      
+      const check = await client.link.findUnique({
+        where: {
+          userId: userId,
+        }
+      })
+      if(!check) {
+        const shareableString = await generateShareableLink(userId, 10);
+        const response = await client.link.create({
+          data: {
+            hash: shareableString,
+            user: {
+              connect: { id: userId },
+            },
+          }
+        })
+        res.status(201).json({
+          message: "Brain shared successfully",
+          response: response,
+        });
+      } else {
+        res.status(400).json({ message: "Brain already shared", response: check });
+      }
+    } else {
+      const check = await client.link.findUnique({
+        where: {
+          userId: userId,
+        }
+      })
+      if(!check) {
+        res.status(400).json({ message: "Brain is not present", response: check });
+        return;
+      }
+      await client.link.delete({
+        where: {
+          userId: userId,
+        }
+      })
+
+      res.status(200).json({
+        message: "Brain unshared successfully",
+        response: null,
+      });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Internal Server Error");
+  }
+})
+
+router.get("/brain/:shareLink", async (req: GetBrainProps, res: Response) => {
+  const hash = req.params.shareLink;
+  try {
+    if(!hash) {
+      res.status(400).json({ message: "Invalid share link" });
+      return;
+    }
+    const link = await client.link.findUnique({
+      where: {
+        hash: hash,
+      }
+    });
+
+    if(!link) {
+      res.status(404).json({ message: "Brain not found" });
+      return;
+    }
+    const user = await client.user.findUnique({
+      where: {
+        id: link.userId,
+      }
+    })
+
+    const response = await client.content.findMany({
+      where: {
+        userId: link.userId,
+      }
+    })
+
+    res.status(200).json({
+      message: "Brain retrieved successfully",
+      response: {
+        username: user?.username,
+        content: response,
+      }
+    });
   } catch (error) {
     console.error(error);
     res.status(500).send("Internal Server Error");

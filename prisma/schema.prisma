@@ -19,16 +19,18 @@ model User {
   username String    @unique
   password String
   Content  Content[]
+  Link     Link[]
 }
 
 model Content {
-  id     Int         @id @default(autoincrement())
-  title  String
-  type   ContentType
-  link   String
-  tags   Tag[]
-  userId Int
-  user   User        @relation(fields: [userId], references: [id])
+  id       Int         @id @default(autoincrement())
+  title    String
+  type     ContentType
+  link     String
+  tags     Tag[]
+  userId   Int
+  user     User        @relation(fields: [userId], references: [id])
+  isPublic Boolean     @default(true)
 }
 
 model Tag {
@@ -36,6 +38,12 @@ model Tag {
   name      String
   content   Content @relation(fields: [contentId], references: [id])
   contentId Int
+}
+
+model Link {
+  hash   String @id
+  userId Int    @unique
+  user   User   @relation(fields: [userId], references: [id])
 }
 
 enum ContentType {
