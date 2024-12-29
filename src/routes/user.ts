@@ -65,6 +65,12 @@ interface UpdateContentStatusProps extends AuthReqProps {
   }
 }
 
+interface TagProps {
+  id: number;
+  name: string;
+  contentId: number;
+}
+
 
 
 router.post("/signup", async (req: Request<{}, {}, SignupProps>, res: Response): Promise<void> => {
@@ -183,7 +189,7 @@ router.post("/create-content", authMiddleware, async (req: CreateContentProps, r
 router.get("/get-contents", authMiddleware, async (req: AuthReqProps, res): Promise<void> => {
   const userId = req.userId;
   try {
-    if(!userId){
+    if (!userId) {
       res.status(401).json({ message: "Unauthorized! Cannot get content!" });
       return;
     }
@@ -192,19 +198,42 @@ router.get("/get-contents", authMiddleware, async (req: AuthReqProps, res): Prom
       where: {
         userId: userId,
       }
-    })
+    });
+
+    const tags: TagProps[] = await client.tag.findMany({
+      where: {
+        contentId: {
+          in: response.map((content) => content.id)
+        }
+      }
+    });
+
+    const tagsList = tags.reduce<Record<number, string[]>>((acc, tag) => {
+      if (!acc[tag.contentId]) {
+        acc[tag.contentId] = [];
+      }
+      acc[tag.contentId].push(tag.name); 
+      return acc; 
+    }, {} as Record<number, string[]>);
+
+    const responseWithTags = response.map((content) => {
+      return {
+        ...content,
+        tags: tagsList[content.id] || [] 
+      };
+    });
 
     res.status(200).json({
       message: "Content retrieved successfully",
-      response: response,
+      response: responseWithTags,
     });
     
-  } catch(error) {
-    console.error(error);
+  } catch (error) {
+    console.error("Error retrieving contents:", error);
     res.status(500).send("Internal Server Error");
   }
+});
 
-})
 
 router.delete("/delete-content", authMiddleware, async (req: DeleteProps, res: Response): Promise<void> => {
   const userId = req.userId;

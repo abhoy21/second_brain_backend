@@ -23,14 +23,15 @@ model User {
 }
 
 model Content {
-  id       Int         @id @default(autoincrement())
-  title    String
-  type     ContentType
-  link     String
-  tags     Tag[]
-  userId   Int
-  user     User        @relation(fields: [userId], references: [id])
-  isPublic Boolean     @default(true)
+  id        Int         @id @default(autoincrement())
+  title     String
+  type      ContentType
+  link      String
+  tags      Tag[]
+  userId    Int
+  user      User        @relation(fields: [userId], references: [id])
+  isPublic  Boolean     @default(true)
+  createdAt DateTime    @default(now()) @db.Date
 }
 
 model Tag {

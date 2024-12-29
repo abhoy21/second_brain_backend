@@ -15,12 +15,13 @@ export interface AuthReqProps extends Request {
     userId?: number;
 }
 const authMiddleware = async (req: AuthReqProps, res: Response, next: NextFunction): Promise<void> => {
-    const token = req.headers.authorization;
+    const authHeader = req.headers.authorization;
     try {
-        if(!token) {
+        if(!authHeader) {
             res.status(401).json({ message: "Unauthorized Access" });
             return;
         }
+        const token = authHeader.split(' ')[1];
         await jwt.verify(token, JWT_SECRET, (err, decoded) => {
             if(err) {
                 res.status(401).json({ message: "Unauthorized" });
