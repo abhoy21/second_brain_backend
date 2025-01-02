@@ -4,6 +4,10 @@ import express, { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import authMiddleware, { AuthReqProps } from "../middleware";
 import generateShareableLink from "../utils/generateShareableLink";
+const passport = require('passport');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const GitHubStrategy = require('passport-github2').Strategy;
+
 
 const JWT_SECRET: string = process.env.JWT_SECRET || "";
 
@@ -28,9 +32,10 @@ interface TagProps {
 }
 interface CreateContentProps extends AuthReqProps  {
   title?: string;
-  link?: string;
+  content?: string;
   type?: ContentType
   tags?: TagProps[]
+  isPublic?:  Boolean
 }
 enum ContentType {
   TEXT = "text",
@@ -130,12 +135,15 @@ router.post("/signin", async (req: Request<{}, {}, SigninProps>, res: Response):
       const token = jwt.sign(
         { userId: existingUser.id },
         JWT_SECRET,
-        { expiresIn: "3 days" }
+        
       );
 
       res.status(200).json({
         message: "User signed in successfully",
-        response: token,
+        response: {
+          token: token,
+          user: existingUser.username
+        },
       });
     } catch (tokenError) {
       console.error("Token generation error:", tokenError);
@@ -155,16 +163,16 @@ router.post("/create-content", authMiddleware, async (req: CreateContentProps, r
       res.status(401).json({ message: "Unauthorized! Cannot create content!" });
       return;
     }
-    const { title, link, type, tags } = req.body;
+    const { title, content, type, tags, isPublic } = req.body;
 
-    if(!title || !link || !type) {
+    if(!title || !content || !type) {
       res.status(400).json({ message: "Missing required fields" });
       return;
     }
     const response = await client.content.create({
       data: {
         title,
-      link,
+        content,
       type,
       tags: {
         create: tags.map((tag: string) => ({name: tag}))
@@ -172,6 +180,7 @@ router.post("/create-content", authMiddleware, async (req: CreateContentProps, r
       user: {
         connect: { id: userId },
       },
+      isPublic: isPublic || true
       
       }
     })
@@ -266,7 +275,7 @@ router.delete("/delete-content", authMiddleware, async (req: DeleteProps, res: R
   }
 })
 
-router.post("/update-content-status", authMiddleware, async (req: UpdateContentStatusProps, res: Response) => {
+router.post("/update-content-status", authMiddleware, async (req: UpdateContentStatusProps, res: Response): Promise<void> => {
   const userId = req.userId;
   try {
     if(!userId){
@@ -303,6 +312,7 @@ router.post("/share-brain", authMiddleware, async (req: ShareBrainProps, res: Re
     }
 
     const {share} = req.body;
+    console.log("share", share)
     if(share) {
       
       const check = await client.link.findUnique({
@@ -310,8 +320,9 @@ router.post("/share-brain", authMiddleware, async (req: ShareBrainProps, res: Re
           userId: userId,
         }
       })
+    
       if(!check) {
-        const shareableString = await generateShareableLink(userId, 10);
+        const shareableString = generateShareableLink(userId, 10);
         const response = await client.link.create({
           data: {
             hash: shareableString,
@@ -325,7 +336,7 @@ router.post("/share-brain", authMiddleware, async (req: ShareBrainProps, res: Re
           response: response,
         });
       } else {
-        res.status(400).json({ message: "Brain already shared", response: check });
+        res.status(400).json({ message: "Brain already shared", response: check.hash });
       }
     } else {
       const check = await client.link.findUnique({
@@ -396,5 +407,8 @@ router.get("/brain/:shareLink", async (req: GetBrainProps, res: Response) => {
     res.status(500).send("Internal Server Error");
   }
 })
+
+
+
 
 export const userRouter = router;

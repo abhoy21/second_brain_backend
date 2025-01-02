@@ -26,7 +26,7 @@ model Content {
   id        Int         @id @default(autoincrement())
   title     String
   type      ContentType
-  link      String
+  content   String
   tags      Tag[]
   userId    Int
   user      User        @relation(fields: [userId], references: [id])
@@ -50,7 +50,6 @@ model Link {
 enum ContentType {
   text
   image
-  video
-  audio
+  pdf
   link
 }
