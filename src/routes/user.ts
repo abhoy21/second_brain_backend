@@ -195,7 +195,7 @@ router.post("/create-content", authMiddleware, async (req: CreateContentProps, r
   }
 })
 
-router.get("/get-contents", authMiddleware, async (req: AuthReqProps, res): Promise<void> => {
+router.get("/get-contents", authMiddleware, async (req: AuthReqProps, res: Response): Promise<void> => {
   const userId = req.userId;
   try {
     if (!userId) {
@@ -408,6 +408,45 @@ router.get("/brain/:shareLink", async (req: GetBrainProps, res: Response) => {
   }
 })
 
+router.get("/content-counts", authMiddleware, async (req: AuthReqProps, res: Response): Promise<void> => {
+  const userId = req.userId;
+  try {
+    if(!userId){
+      res.status(401).send("Unauthorized Access!");
+      return;
+    }
+    const totalCount = await client.content.count({
+      where: {
+        userId: userId
+      }
+    })
+
+    const publicCount = await client.content.count({
+      where: {
+        userId: userId,
+        isPublic: true
+      }
+    })
+
+    const privateCount = await client.content.count({
+      where: {
+        userId: userId,
+        isPublic: false
+      }
+    })
+
+    res.status(200).json({
+      message: "Stats retrieved successfully",
+      stats: {
+        total: totalCount,
+        public: publicCount,
+        private: privateCount
+      }
+    });
+  } catch(err){
+    res.status(500).send("Internal Server Error!");
+  }
+})
 
 
 
